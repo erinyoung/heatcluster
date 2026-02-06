@@ -72,7 +72,7 @@ jobs:
         run: heatcluster -i test/example.nwk --format nwk -o out_nwk.png
 
       - name: Test IQ-TREE
-        run: heatcluster -i test/iqtree_example.mldist --format iqtree_mldist -o out_iqtree.png
+        run: heatcluster -i test/iqtree_example.mldist --format iqtree -o out_iqtree.png
 
       - name: Test Gene Presence/Absence (Roary/Panaroo)
         run: heatcluster -i test/gene_presence_absence.Rtab --format gene_presence_absence -o out_gpa.png
