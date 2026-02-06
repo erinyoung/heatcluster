@@ -21,70 +21,70 @@ jobs:
 
       # --- BASIC MATRIX INPUTS ---
       - name: Test Standard CSV (Small)
-        run: python3 heatcluster.py -i test/small_matrix.csv -o out_small
+        run: heatcluster -i test/small_matrix.csv -o out_small
 
       - name: Test Standard CSV (Large + Auto-K + PCA)
         # Testing the ML features mentioned in README
-        run: python3 heatcluster.py -i test/large_matrix.csv --auto-k --pca -o out_large
+        run: heatcluster -i test/large_matrix.csv --auto-k --pca -o out_large
 
       - name: Test SNP-dists
-        run: python3 heatcluster.py -i test/snp-dists.txt --format snp-dists -o out_snpdists
+        run: heatcluster -i test/snp-dists.txt --format snp-dists -o out_snpdists
 
       - name: Test Melted Format
-        run: python3 heatcluster.py -i test/melted.txt --format melted -o out_melted
+        run: heatcluster -i test/melted.txt --format melted -o out_melted
 
       # --- GENOMIC IDENTITY INPUTS ---
       - name: Test FastANI
-        run: python3 heatcluster.py -i test/fastani_example.txt --format fastani -o out_fastani
+        run: heatcluster -i test/fastani_example.txt --format fastani -o out_fastani
 
       - name: Test Skani
-        run: python3 heatcluster.py -i test/skani_example.txt --format skani -o out_skani
+        run: heatcluster -i test/skani_example.txt --format skani -o out_skani
 
       - name: Test EzAAI
-        run: python3 heatcluster.py -i test/ezaai_example.txt --format ezaai -o out_ezaai
+        run: heatcluster -i test/ezaai_example.txt --format ezaai -o out_ezaai
 
       - name: Test PyANI (Identity)
-        run: python3 heatcluster.py -i test/pyani_example_percentage_identity.tab --format pyani_identity -o out_pyani_id
+        run: heatcluster -i test/pyani_example_percentage_identity.tab --format pyani_identity -o out_pyani_id
 
       - name: Test PyANI (Errors)
-        run: python3 heatcluster.py -i test/pyani_example_similarity_errors.tab --format pyani_errors -o out_pyani_err
+        run: heatcluster -i test/pyani_example_similarity_errors.tab --format pyani_errors -o out_pyani_err
 
       - name: Test Sourmash
-        run: python3 heatcluster.py -i test/sourmash_example.csv --format sourmash -o out_sourmash
+        run: heatcluster -i test/sourmash_example.csv --format sourmash -o out_sourmash
 
       # --- SKETCHING / K-MER INPUTS ---
       - name: Test Mash
-        run: python3 heatcluster.py -i test/mash_example.txt --format mash -o out_mash
+        run: heatcluster -i test/mash_example.txt --format mash -o out_mash
 
       - name: Test Dashing
-        run: python3 heatcluster.py -i test/dashing_example.txt --format dashing -o out_dashing
+        run: heatcluster -i test/dashing_example.txt --format dashing -o out_dashing
 
       - name: Test BinDash
-        run: python3 heatcluster.py -i test/bindash_example.txt --format bindash -o out_bindash
+        run: heatcluster -i test/bindash_example.txt --format bindash -o out_bindash
 
       - name: Test KWIP
-        run: python3 heatcluster.py -i test/kwip_example.txt --format kwip -o out_kwip
+        run: heatcluster -i test/kwip_example.txt --format kwip -o out_kwip
 
       - name: Test SKA
-        run: python3 heatcluster.py -i test/ska_example.distances.tsv --format ska -o out_ska
+        run: heatcluster -i test/ska_example.distances.tsv --format ska -o out_ska
 
       # --- BIOLOGICAL / PHYLOGENY INPUTS ---
       - name: Test Newick Tree (Biopython)
-        run: python3 heatcluster.py -i test/example.nwk --format nwk -o out_nwk
+        run: heatcluster -i test/example.nwk --format nwk -o out_nwk
 
       - name: Test IQ-TREE
-        run: python3 heatcluster.py -i test/iqtree_example.mldist --format iqtree_mldist -o out_iqtree
+        run: heatcluster -i test/iqtree_example.mldist --format iqtree_mldist -o out_iqtree
 
       - name: Test Gene Presence/Absence (Roary/Panaroo)
-        run: python3 heatcluster.py -i test/gene_presence_absence.Rtab --format gene_presence_absence -o out_gpa
+        run: heatcluster -i test/gene_presence_absence.Rtab --format gene_presence_absence -o out_gpa
 
       - name: Test PopPUNK
         # PopPUNK usually requires the .npy file, script should auto-detect .pkl
-        run: python3 heatcluster.py -i test/poppunk_db.dists.npy --format poppunk -o out_poppunk
+        run: heatcluster -i test/poppunk_db.dists.npy --format poppunk -o out_poppunk
 
       # --- UTILITIES ---
       - name: Test Version Flag
-        run: python3 heatcluster.py -v
+        run: heatcluster -v
 
       - name: Test Help Flag
-        run: python3 heatcluster.py -h
+        run: heatcluster -h
