@@ -16,6 +16,15 @@
 
 **HeatCluster** is a command-line bioinformatics tool designed to bridge the gap between raw genomic distance matrices and actionable epidemiological insights. HeatCluster integrates unsupervised machine learning (Hierarchical Clustering, PCA, Silhouette Analysis) with publication-quality visualization to automatically identify and classify viral or bacterial lineages. 
 
+## Table of Contents
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Quick Start](#quick-start-examples)
+- [Outputs](#outputs)
+- [Machine Learning Workflows](#machine-learning-workflows)
+- [Visualization Controls](#visualization-controls)
+- [Supported Inputs](#supported-input-formats)
+
 ## Key Features
 
 ### Robust Data Ingestion
@@ -57,6 +66,8 @@ From pypi:
 pip install heatcluster
 ```
 
+**Core Dependencies:** `pandas`, `numpy`, `scipy`, `seaborn`, `matplotlib`, `scikit-learn`, `fastcluster`.
+
 ---
 
 ## Quick Start Examples
@@ -68,12 +79,28 @@ Visualize a standard SNP distance matrix with a reverse-red colormap (where dark
 ```bash
 heatcluster -i matrix.csv -o heatmap.png --cmap Reds_r
 ```
+
 ### 2. ANI Visualization (Skani / FastANI)
-Visualize Average Nucleotide Identity (ANI) using the `skani` format and a sequential colormap like viridis:
+Visualize Average Nucleotide Identity (ANI) using the skani format and a sequential colormap like viridis:
 
 ```bash
 heatcluster -i skani_results.txt --format skani --cmap viridis -o ani_plot.png
 ```
+
+### 3. Pipeline Analysis (No Plot)
+
+Automatically detect clusters and export them to CSV without generating an image (useful for large datasets or pipelines):
+
+```bash
+heatcluster -i large_matrix.csv --auto-k --no-plot -l clusters.csv
+```
+
+## Outputs
+HeatCluster generates the following files:
+* **`heatcluster_matrix.png`** (Default): The high-resolution clustered heatmap.
+* **`heatcluster_sorted.csv`** (Default): The input distance matrix re-ordered to match the clustering tree. Useful for aligning metadata.
+* **`heatcluster_clusters.csv`** (Optional): Created when using `--auto-k`, `--cluster-k`, or `--cluster-t`. Contains two columns: `Sample` and `Cluster_ID`.
+* **`heatcluster_pca.png`** (Optional): The validation scatter plot created when `--pca` is used.
 
 ---
 
@@ -81,19 +108,32 @@ heatcluster -i skani_results.txt --format skani --cmap viridis -o ani_plot.png
 
 ### Automated Lineage Discovery (Auto-K)
 
+**Use Case:** Exploratory analysis of a new dataset where the population structure is unknown (e.g., initial screening of a hospital database).
+
 If the number of outbreaks in the data is unknown, the **Silhouette Analysis** engine can determine it automatically.
+
 ```bash
 heatcluster -i large_matrix.csv \
   --auto-k \
   --cluster-out clusters.csv \
   --pca --pca-out pca_plot.png
 ```
-* **--auto-k:** Iteratively tests $K=2..10$ and selects the cluster count with the highest Silhouette Coefficient.
+
+* **--auto-k:** Iteratively tests $K=2..10$ and selects the cluster count with the highest Silhouette Coefficient. This mathematically identifies the most distinct natural groupings in the data.
 * **--cluster-out:** Saves the specific samples belonging to each lineage to `clusters.csv`.
-* **--pca:** Generates a validation scatter plot colored by the detected clusters.
-* If this consistenly performed well, there would be multiple tools using this for outbreak detection...
+* **--pca:** Generates a validation scatter plot colored by the detected clusters. This provides a secondary visual check to ensure the detected clusters actually form distinct groups in principal component space.
+
+### A Note on Automated Clustering
+
+The **Auto-K (Silhouette Analysis)** and **PCA** validation modules included in HeatCluster demonstrate how unsupervised machine learning techniques can be applied to genomic epidemiology.
+
+While these methods are mathematically robust for identifying structure in high-dimensional data, they are not yet standard practice in clinical bioinformatics. Most outbreak detection currently relies on fixed biological thresholds (e.g., SNP cutoffs) rather than dynamic clustering coefficients.
+
+These features are provided as **experimental tools** for exploratory analysis and to demonstrate the potential of integrating Scikit-learn workflows into genomic surveillance. Users should always validate "automated" clusters against biological context and established epidemiological links.
 
 ### Threshold-Based Surveillance
+
+**Use Case:** Routine public health surveillance where "_outbreak_" is defined by a strict biological rule (e.g., CDC guidelines defining a cluster as isolates within 50 SNPs).
 
 To define an outbreak strictly as "any cluster of samples separated by fewer than 50 SNPs":
 
@@ -104,7 +144,11 @@ heatcluster -i snp_matrix.csv \
 ```
 
 ### Outlier Detection & Manual Override
-If automated metrics fail due to global outliers, specific cluster counts can be enforced based on visual inspection.
+
+**Use Case:** Refining analysis when automated metrics are skewed by a single distant outlier (e.g., one sample is 10,000 SNPs away, forcing all other distinct outbreaks into a single "cluster").
+
+If automated metrics fail due to global outliers, specific cluster counts can be enforced based on visual inspection of the heatmap or dendrogram.
+
 ```bash
 heatcluster -i matrix.csv --cluster-k 4 --cluster-out manual_clusters.csv
 ```
@@ -113,12 +157,18 @@ heatcluster -i matrix.csv --cluster-k 4 --cluster-out manual_clusters.csv
 ## Visualization Controls 
 | Flag | Description | Example |
 | :--- | :--- | :---: |
-| `--title`| Set a custom plot title| `--title  "Salmonella Outbreak 2024"` |
+| `--title`| Set a custom plot title| `--title "Salmonella Outbreak 2024"` |
+| `--cmap` | Set the matplotlib colormap | `--cmap viridis` |
 | `--no-annot`| Hide numbers inside cells (clean look)| `--no-annot`|
+| `--no-plot` | Skip image generation (CSV/Analysis only) | `--no-plot` |
+| `--dendrogram` | Show the hierarchical tree structure | `--dendrogram` |
+| `--no-cluster` | Disable clustering (simple sorting only) | `--no-cluster` |
 | `--dpi`| Set image resolution| `--dpi 300`|
 | `--hide-below`| Mask values lower than X| `--hide-below 95.0`|
 | `--hide-above`| Mask values higher than X| `--hide-above 50` |
+| `--vmin` / `--vmax` | Force min/max values for color scale | `--vmin 0 --vmax 100` |
 | `--width` / `--height`| Force figure dimensions (inches)| `--width 12 --height 12`|
+| `--font-scale` | Scale text size by a factor | `--font-scale 1.5` |
 
 ---
 
@@ -126,7 +176,7 @@ heatcluster -i matrix.csv --cluster-k 4 --cluster-out manual_clusters.csv
 
 HeatCluster accepts a wide variety of inputs from standard bioinformatics tools. Use the `--format` flag to specify the input type. 
 
-A sample file from each analysis can be found in the respository in [test](./test/).
+A sample file from each analysis can be found in the repository in [test](./test/).
 
 A list of general sample commands that were used to generate each test file can be found in [docs](./docs/README.md).
 
@@ -183,6 +233,7 @@ If an **Identity** or **Similarity** matrix (where `100` or `1.0` = Identical) i
 ### Phylogeny & Clusters
 * **Newick Trees** (`--format nwk`)
   Calculates the **Patristic Distance** (sum of branch lengths) between all tips in the tree. Requires `biopython`.
+    * Intended for use with haploid organisms
 * **IQ-TREE** (`--format iqtree_mldist`)
   Parses the `.mldist` file (Phylip format square matrix) generated by IQ-TREE.
 * **PopPUNK** (`--format poppunk`)
@@ -190,7 +241,8 @@ If an **Identity** or **Similarity** matrix (where `100` or `1.0` = Identical) i
 
 ### Generic Data
 * **Melted / Long-Format** (`--format melted`)
-  - Accepts any generic 3-column CSV/TSV list: `SampleA`, `SampleB`, `Value`. 
+  - Accepts any generic 3-column CSV/TSV list: `SampleA`, `SampleB`, `Value`.
+  - Does not have a header line.
   - This is useful for custom metrics. 
   - There is a row for sample-sample comparison. 
   - The value of 0 must be used for identical, and the remaining values are positive.
