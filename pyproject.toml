@@ -7,17 +7,25 @@ name = "heatcluster"
 version = "1.3.0"
 description = "A Python tool for visualizing SNP matrices with hierarchical clustering"
 readme = "README.md"
+requires-python = ">=3.8"
+
 authors = [
   { name = "Stephen Beckstrom-Sternberg", email = "stephen.beckstrom-sternberg@azdhs.gov" },
 ]
+
+maintainers = [
+  { name = "Erin Young", email = "eriny@utah.gov" }
+]
+
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
+
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
+
 dependencies = [
     "pandas>=1.3.0",
     "numpy>=1.20.0",
@@ -30,8 +38,9 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/DrB-S/heatcluster"
-"Bug Tracker" = "https://github.com/DrB-S/heatcluster/issues"
+"Homepage" = "https://github.com/erinyoung/heatcluster"
+"Bug Tracker" = "https://github.com/erinyoung/heatcluster/issues"
+"Original Repository" = "https://github.com/DrB-S/heatcluster"
 
 [project.scripts]
 heatcluster = "heatcluster.cli:main"
