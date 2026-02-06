@@ -19,6 +19,6 @@ pyani_identity,test/pyani_example_hadamard.tab,test_pyani_hadamard
 pyani_identity,test/pyani_example_percentage_identity.tab,test_pyani_perc_ident
 pyani_errors,test/pyani_example_similarity_errors.tab,test_pyani_sim_err
 iqtree,test/iqtree_example.mldist,test_iqtree_mldist
-gene_presenece_absense,test/gene_presence_absence.Rtab,test_gene_pa
+gene_presence_absence,test/gene_presence_absence.Rtab,test_gene_pa
 pathogen_detection,test/PDG000000136.1.reference_target.SNP_distances.tsv,test_pd
 vcf,test/PDS000195046.1.variation.vcf.gz,test_vcf

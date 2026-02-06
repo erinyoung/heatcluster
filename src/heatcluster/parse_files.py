@@ -897,7 +897,7 @@ def parse_files(input_file, fmt):
         df = read_vcf_matrix(input_file)
 
     # --- Gene Content / Alleles ---
-    elif fmt == "gene_presenece_absense":
+    elif fmt == "gene_presence_absence":
         df = read_gene_presence_absence_matrix(input_file)
     # elif fmt == "mlst":
     #    df = read_allel_matrix(input_file)

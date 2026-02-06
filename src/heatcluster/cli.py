@@ -67,7 +67,7 @@ def get_parser() -> argparse.ArgumentParser:
             "pyani_identity",
             "pyani_errors",
             "iqtree",
-            "gene_presenece_absense",
+            "gene_presence_absence",
             "pathogen_detection",
             "vcf",
         ],
