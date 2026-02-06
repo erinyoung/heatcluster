@@ -27,7 +27,6 @@ dependencies = [
     "scikit-learn",
     "fastcluster",
     "biopython",
-    "pysam",
 ]
 
 [project.urls]
@@ -36,3 +35,7 @@ dependencies = [
 
 [project.scripts]
 heatcluster = "heatcluster.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["test*", "tests*", "docs*"]
