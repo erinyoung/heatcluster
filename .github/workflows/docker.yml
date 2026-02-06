@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-name: HeatCluster Docker Build
-=======
 name: HeatCluster Build
->>>>>>> upstream/main
 
 on: 
   workflow_dispatch:
