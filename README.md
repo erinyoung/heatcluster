@@ -298,6 +298,12 @@ HeatCluster natively handles diverse genomic data types.
 If you use HeatCluster in your research, please cite:
 > **HeatCluster: Automated Genomic Epidemiology & Visualization.** [https://github.com/DrB-S/heatcluster](https://github.com/DrB-S/heatcluster)
 
+## About this fork
+
+This repository is a maintained fork of the original **heatcluster** project by Stephen Beckstrom-Sternberg.
+Development of the original repository paused in ~2024.
+This fork continues maintenance, bug fixes, packaging, and releases.
+
 ## Contributing
 Contributions are welcome! Please submit issues for bug reports or feature requests. Pull requests are appreciated for new parsers or plotting features.
 
