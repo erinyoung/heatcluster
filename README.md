@@ -4,12 +4,7 @@
   <img src="assets/logo.png" alt="HeatCluster Logo" width="220">
   <h1>HeatCluster</h1>
 
-  <a href="[https://pypi.org/project/heatcluster/](https://pypi.org/project/heatcluster/)">
-    <img src="[https://img.shields.io/pypi/v/heatcluster?color=blue&label=pypi%20package](https://img.shields.io/pypi/v/heatcluster?color=blue&label=pypi%20package)" alt="PyPI version">
-  </a>
-  <a href="[https://github.com/DrB-S/heatcluster/blob/main/LICENSE](https://github.com/DrB-S/heatcluster/blob/main/LICENSE)">
-    <img src="[https://img.shields.io/badge/License-MIT-green.svg](https://img.shields.io/badge/License-MIT-green.svg)" alt="License">
-  </a>
+  
 </div>
 
 <br>
@@ -255,6 +250,49 @@ B B 0
 A A 0
 ```
 ---
+## Gallery & Examples
+
+### Visualization Controls
+HeatCluster gives you fine-grained control over how your data is displayed.
+
+| Default View | Custom Color Scale | Threshold Clustering |
+| :---: | :---: | :---: |
+| **Standard Output** | **`--vmax 200`** | **`--cluster-t 10`** |
+| ![Default](assets/examples/basic.png) | ![Vmax](assets/examples/basic_vmax2000.png) | ![Threshold](assets/examples/basic_10.png) |
+| *Standard hierarchical clustering* | *Adjusting contrast for high-variance data* | *Defining clusters by distance < 10* |
+
+---
+
+### Machine Learning & Validation
+Automate the discovery of lineages or validate your clusters with PCA.
+
+| Manual K-Means | Auto-K (Silhouette Analysis) | PCA Validation |
+| :---: | :---: | :---: |
+| **`--cluster-k 3`** | **`--auto-k`** | **`--pca`** |
+| ![K3](assets/examples/basic_3_k.png) | ![AutoK](assets/examples/basic_auto_k.png) | ![PCA](assets/examples/basic_pca.png) |
+| *Forcing 3 specific lineages* | *Automatically detecting optimal clusters* | *Dimensionality reduction check* |
+
+---
+
+### Supported Input Formats
+HeatCluster natively handles diverse genomic data types.
+
+#### Genomic Identity (ANI) & SNP Matrices
+| SNP Distance | Average Nucleotide Identity |
+| :---: | :---: |
+| **SNP-dists** | **Skani / FastANI** |
+| ![SNP](assets/examples/snp_heatmap.png) | ![ANI](assets/examples/ani_heatmap.png) |
+| *Diverging colormap (`RdYlBu_r`)* | *Sequential colormap (`viridis`) inverted* |
+
+#### Phylogenetics & K-mer Sketching
+| Phylogenetic Tree | PopPUNK Distances |
+| :---: | :---: |
+| **Newick (.nwk)** | **PopPUNK (.npy)** |
+| ![Phylo](assets/examples/phylo_tree.png) | ![PopPUNK](assets/examples/poppunk_viz.png) |
+| *Patristic distance from tree topology* | *Binary matrix visualization* |
+
+---
+
 
 ## Citation
 If you use HeatCluster in your research, please cite:
