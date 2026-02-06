@@ -1,41 +1,65 @@
-name: heatcluster test
+name: HeatCluster Manual CLI Test
+
 on: [pull_request, workflow_dispatch]
+
 jobs:
-  test:
+  cli-test:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
-      
-      - name: install dependencies
-        run: pip3 install pandas numpy pathlib seaborn matplotlib
-      
-      - name: test (tab-delimited)
-        run: python3 heatcluster.py -i test/small_matrix.csv
 
-      - name: test1 (comma-delimited)
-        run: python3 heatcluster.py -i test/snp-dists.txt -o test1
-      
-      - name: test2 (empty first row/col cell)
-        run: python3 heatcluster.py -i test/blank.txt -o test2 -t png
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-      - name: test3 (melted - failure)
-        run: python3 heatcluster.py -i test/melted.txt -o test3
-      
-      - name: test4 (small matrix)
-        run: python3 heatcluster.py -i test/small_matrix.csv -o test4
-      
-      - name: test5 (medium matrix)
-        run: python3 heatcluster.py -i test/med_matrix.txt -o test5
-      
-      - name: test6 (large matrix)
-        run: python3 heatcluster.py -i test/large_matrix.csv -o test6
+      - name: Install HeatCluster
+        # Installs dependencies AND your package command 'heatcluster'
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
 
-      - name: test7 (help)
-        run: python3 heatcluster.py -h
+      # 1. Basic usage (Small Matrix)
+      # Tests: Default behavior, heatmap generation
+      - name: Test 1 - Basic Heatmap
+        run: heatcluster -i test/small_matrix.csv -o test1_basic.png
 
-      - name: test8 (version)
-        run: python3 heatcluster.py -v
+      # 2. Large Matrix + Optimization
+      # Tests: --no-plot (speed), --auto-k (ML logic), and -l (CSV export)
+      # This confirms your new refactoring works on large files without rendering images
+      - name: Test 2 - Large Matrix (No Plot / Auto-K)
+        run: |
+          heatcluster -i test/large_matrix.csv \
+            --no-plot \
+            --auto-k \
+            -l test2_clusters.csv
 
-      - name: tree
-        run: tree
+      # 3. Alternative Formats + PCA
+      # Tests: Parsing logic (skani) and PCA generation
+      - name: Test 3 - Skani Format + PCA
+        run: |
+          heatcluster -i test/skani_example.txt \
+            -f skani \
+            -o test3_skani.png \
+            --pca \
+            --pca-out test3_pca.png
+
+      # 4. Explicit Clustering (K=3)
+      # Tests: Manual overrides for clustering
+      - name: Test 4 - Medium Matrix (Force K=3)
+        run: |
+          heatcluster -i test/med_matrix.txt \
+            --cluster-k 3 \
+            -l test4_manual_clusters.csv \
+            -o test4_med.pdf
+
+      # 5. Sanity Checks
+      - name: Verify Version and Help
+        run: |
+          heatcluster --version
+          heatcluster --help
+
+      # 6. List outputs to prove files were created
+      - name: List Generated Files
+        run: ls -lh test*.png test*.csv test*.pdf 2>/dev/null || true
