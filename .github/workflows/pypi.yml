@@ -9,13 +9,8 @@ jobs:
     name: Build and publish Python distribution to PyPI
     runs-on: ubuntu-latest
     
-    environment: 
-      name: pypi
-      url: https://pypi.org/p/heatcluster
-
     permissions:
       contents: read
-      id-token: write 
 
     steps:
     - uses: actions/checkout@v4
@@ -30,15 +25,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install build
 
-    - name: Sync version from Release Tag
-      run: |
-        TAG_NAME=${{ github.ref_name }}
-        VERSION=${TAG_NAME#v}
-        sed -i "s/version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-        echo "Package version updated to: $VERSION"
-
     - name: Build package
       run: python -m build
 
     - name: Publish package to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
