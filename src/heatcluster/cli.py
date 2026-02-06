@@ -10,9 +10,11 @@ import numpy as np
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
-from scipy.cluster.hierarchy import ClusterWarning, fcluster
+from scipy.cluster.hierarchy import ClusterWarning, fcluster, linkage
+from scipy.spatial.distance import squareform
 
-from heatcluster.parse_files import parse_files
+# --- Parsing Import ---
+from .parse_files import parse_files
 
 # Machine Learning Imports
 try:
@@ -21,6 +23,13 @@ try:
 except ImportError:
     silhouette_score = None
     PCA = None
+
+# Optimization Import
+try:
+    import fastcluster
+    HAS_FASTCLUSTER = True
+except ImportError:
+    HAS_FASTCLUSTER = False
 
 from . import __version__
 
@@ -86,8 +95,8 @@ def get_parser() -> argparse.ArgumentParser:
         "-l",
         "--cluster-out",
         type=str,
-        default="heatcluster_clusters.csv",
-        help="Output filename for cluster assignments. Default: heatcluster_clusters.csv.",
+        default=None,
+        help="Output filename for cluster assignments (e.g., clusters.csv).",
     )
     parser.add_argument(
         "--cluster-k",
@@ -136,6 +145,11 @@ def get_parser() -> argparse.ArgumentParser:
         "--no-annot",
         action="store_true",
         help="Do not show numbers inside the heatmap cells.",
+    )
+    parser.add_argument(
+        "--no-plot",
+        action="store_true",
+        help="Skip generating the heatmap image (Computation only).",
     )
 
     # Dimensions & Text Size
@@ -199,9 +213,180 @@ def determine_figsize(
     return final_annot, final_label, (final_w, final_h)
 
 
-def run_clustering(df: pd.DataFrame, args, font_tuple: tuple):
+def calculate_linkage(df: pd.DataFrame):
+    """
+    Computes hierarchical clustering linkage matrix.
+    Uses fastcluster (O(N^2)) if available, else scipy (O(N^3)).
+    """
+    # Important: Convert Square DataFrame to Condensed Distance Matrix (1D Array)
+    condensed_matrix = squareform(df.values, checks=False)
+
+    if HAS_FASTCLUSTER:
+        return fastcluster.linkage(condensed_matrix, method="average")
+    else:
+        return linkage(condensed_matrix, method="average")
+
+
+def run_analysis(df: pd.DataFrame, args, font_tuple: tuple):
     matplotlib.use("agg")
     font_size, label_size, fig_size = font_tuple
+
+    # --- LEVEL 1: HIERARCHICAL CLUSTERING (TREE BUILDING) ---
+    linkage_matrix = None
+    use_clustering = not args.no_cluster
+    
+    if use_clustering and df.shape[0] > 1:
+        logging.info("Performing hierarchical clustering...")
+        linkage_matrix = calculate_linkage(df)
+
+    # --- LEVEL 2: FLAT CLUSTERING & AUTO-K (TREE CUTTING) ---
+    final_cluster_labels = None
+    
+    # Logic: Do we need to calculate clusters?
+    need_clusters = (
+        args.cluster_out is not None
+        or args.auto_k
+        or args.cluster_k
+        or args.cluster_t
+    )
+
+    if need_clusters and linkage_matrix is not None:
+        # OPTION A: Auto-Detect K
+        if args.auto_k:
+            if silhouette_score is None:
+                logging.error(
+                    "scikit-learn not found. Install it to use --auto-k: pip install scikit-learn"
+                )
+                sys.exit(1)
+
+            logging.info("Running Silhouette Analysis to find optimal K...")
+            best_k = 2
+            best_score = -1
+            max_possible_k = min(10, len(df) - 1)
+
+            if max_possible_k < 2:
+                logging.warning(
+                    "Not enough samples for Auto-K. Defaulting to K=2."
+                )
+            else:
+                # Prepare Distance Matrix for Silhouette Validation
+                diag_mean = np.diag(df).mean()
+                if diag_mean > 90:
+                    dist_matrix_np = (100 - df).to_numpy().copy()
+                elif diag_mean <= 1.0:
+                    dist_matrix_np = (1.0 - df).to_numpy().copy()
+                else:
+                    dist_matrix_np = df.to_numpy().copy()
+
+                np.fill_diagonal(dist_matrix_np, 0.0)
+                dist_matrix_np[dist_matrix_np < 0] = 0
+
+                for k in range(2, max_possible_k + 1):
+                    labels = fcluster(linkage_matrix, t=k, criterion="maxclust")
+                    if len(set(labels)) < 2:
+                        continue
+                    score = silhouette_score(
+                        dist_matrix_np, labels, metric="precomputed"
+                    )
+                    logging.info(f"  K={k}, Silhouette Score={score:.4f}")
+                    if score > best_score:
+                        best_score = score
+                        best_k = k
+
+                logging.info(
+                    f"Optimal K detected: {best_k} (Score: {best_score:.4f})"
+                )
+                args.cluster_k = best_k
+
+        # OPTION B: Extract Labels based on final K or T
+        if args.cluster_k:
+            logging.info(f"Cutting tree into {args.cluster_k} clusters...")
+            final_cluster_labels = fcluster(
+                linkage_matrix, t=args.cluster_k, criterion="maxclust"
+            )
+        elif args.cluster_t:
+            logging.info(f"Cutting tree at threshold {args.cluster_t}...")
+            final_cluster_labels = fcluster(
+                linkage_matrix, t=args.cluster_t, criterion="distance"
+            )
+        elif args.cluster_out:  # Fallback
+            logging.warning("No clustering method provided. Defaulting to K=2.")
+            final_cluster_labels = fcluster(
+                linkage_matrix, t=2, criterion="maxclust"
+            )
+
+        # Save to CSV
+        if final_cluster_labels is not None:
+            cluster_df = pd.DataFrame(
+                {"Sample": df.index, "Cluster_ID": final_cluster_labels}
+            )
+            out_filename = args.cluster_out if args.cluster_out else "heatcluster_clusters.csv"
+            cluster_df.to_csv(out_filename, index=False)
+            logging.info(f"Saved cluster assignments to {out_filename}")
+
+    # --- LEVEL 3: PCA / VALIDATION ---
+    if args.pca:
+        if PCA is None:
+            logging.error("scikit-learn not found. Install it to use --pca.")
+        else:
+            logging.info("Generating PCA plot...")
+            try:
+                pca = PCA(n_components=2)
+                coords = pca.fit_transform(df)
+                pca_df = pd.DataFrame(coords, columns=["PC1", "PC2"], index=df.index)
+
+                if final_cluster_labels is not None:
+                    pca_df["Cluster"] = final_cluster_labels.astype(str)
+                    hue_col = "Cluster"
+                else:
+                    hue_col = None
+
+                plt.figure(figsize=(10, 8))
+                
+                # Setup kwargs to conditionally include palette
+                plot_args = {
+                    "data": pca_df,
+                    "x": "PC1",
+                    "y": "PC2",
+                    "hue": hue_col,
+                    "s": 100,
+                    "edgecolor": "black",
+                    "alpha": 0.8,
+                }
+                
+                # Only pass palette if we are actually coloring by cluster
+                if hue_col:
+                    plot_args["palette"] = "tab10"
+
+                sns.scatterplot(**plot_args)
+
+                plt.title(f"PCA (PCoA) - {args.title}")
+                plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)")
+                plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)")
+
+                if hue_col:
+                    plt.legend(
+                        bbox_to_anchor=(1.05, 1), loc="upper left", title="Cluster"
+                    )
+
+                plt.savefig(args.pca_out, bbox_inches="tight", dpi=args.dpi)
+                logging.info(f"Saved PCA plot to {args.pca_out}")
+                plt.close()
+            except Exception as e:
+                logging.error(f"Failed during PCA generation: {e}")
+
+    # --- LEVEL 4: VISUALIZATION (HEATMAP) ---
+    if args.no_plot:
+        logging.info("Skipping heatmap generation (--no-plot requested).")
+        # Ensure we still export the sorted matrix CSV if possible
+        if linkage_matrix is not None:
+            # We need to calculate the sort order manually if not plotting
+            from scipy.cluster.hierarchy import leaves_list
+            reordered_index = leaves_list(linkage_matrix)
+            sorted_df = df.iloc[reordered_index, reordered_index]
+            sorted_df.to_csv(args.csv)
+            logging.info(f"Saved sorted matrix to {args.csv}")
+        return
 
     # Logic: Annotations
     if args.no_annot:
@@ -222,19 +407,18 @@ def run_clustering(df: pd.DataFrame, args, font_tuple: tuple):
 
     logging.info(f"Generating heatmap: {args.output}")
 
-    # Cluster assignments holder
-    final_cluster_labels = None
-
     try:
-        use_clustering = not args.no_cluster
-        if use_clustering and df.shape[0] > 1 and df.shape[1] > 1:
-            logging.info("Performing hierarchical clustering...")
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", ClusterWarning)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ClusterWarning)
 
+            if linkage_matrix is not None:
+                # Use the PRE-CALCULATED linkage
+                # Note: We pass the same linkage for row and col since it's a symmetric matrix
                 g = sns.clustermap(
                     df,
                     annot=annot_data,
+                    row_linkage=linkage_matrix,
+                    col_linkage=linkage_matrix,
                     fmt="",
                     cmap=args.cmap,
                     linewidths=0,
@@ -248,7 +432,39 @@ def run_clustering(df: pd.DataFrame, args, font_tuple: tuple):
                     mask=mask,
                     annot_kws={"size": font_size},
                 )
+            else:
+                # Simple Sorting (No clustering)
+                logging.info("Using simple sorting (no clustering)...")
+                df_sorted = df.loc[df.sum(axis=1).sort_values().index]
+                if df_sorted.shape[0] == df_sorted.shape[1]:
+                    df_sorted = df_sorted.reindex(columns=df_sorted.index)
+                
+                # Manual heatmap creation since clustermap always clusters or requires linkage
+                fig, ax = plt.subplots(figsize=fig_size)
+                g = sns.heatmap(
+                    df_sorted,
+                    annot=annot_data,
+                    fmt="",
+                    cbar_kws={"fraction": 0.01},
+                    cmap=args.cmap,
+                    linewidths=0,
+                    ax=ax,
+                    vmin=args.vmin,
+                    vmax=args.vmax,
+                    mask=mask,
+                    annot_kws={"size": font_size},
+                )
+                ax.set_title(args.title, fontsize=label_size + 4)
+                
+                plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=label_size)
+                plt.setp(ax.get_yticklabels(), rotation=0, ha="right", fontsize=label_size)
+                plt.savefig(args.output, bbox_inches="tight", dpi=args.dpi)
+                
+                df_sorted.to_csv(args.csv)
+                logging.info(f"Saved sorted matrix to {args.csv}")
+                return
 
+            # Continue Clustermap formatting
             if not args.dendrogram:
                 g.ax_row_dendrogram.set_visible(False)
                 g.ax_col_dendrogram.set_visible(False)
@@ -267,177 +483,15 @@ def run_clustering(df: pd.DataFrame, args, font_tuple: tuple):
 
             plt.savefig(args.output, bbox_inches="tight", dpi=args.dpi)
 
-            # --- ML FEATURE: CLUSTER EXTRACTION ---
-
-            linkage_matrix = g.dendrogram_row.linkage
-
-            # Logic: Do we need to calculate clusters?
-            need_clusters = (
-                args.cluster_out
-                or args.auto_k
-                or (args.pca and (args.cluster_k or args.cluster_t or args.auto_k))
-            )
-
-            if need_clusters:
-                # OPTION 1: Auto-Detect K
-                if args.auto_k:
-                    if silhouette_score is None:
-                        logging.error(
-                            "scikit-learn not found. Install it to use --auto-k: pip install scikit-learn"
-                        )
-                        sys.exit(1)
-
-                    logging.info("Running Silhouette Analysis to find optimal K...")
-                    best_k = 2
-                    best_score = -1
-                    max_possible_k = min(10, len(df) - 1)
-
-                    if max_possible_k < 2:
-                        logging.warning(
-                            "Not enough samples for Auto-K. Defaulting to K=2."
-                        )
-                    else:
-                        # Prepare Distance Matrix
-                        diag_mean = np.diag(df).mean()
-                        if diag_mean > 90:
-                            dist_matrix_np = (100 - df).to_numpy().copy()
-                        elif diag_mean <= 1.0:
-                            dist_matrix_np = (1.0 - df).to_numpy().copy()
-                        else:
-                            dist_matrix_np = df.to_numpy().copy()
-
-                        np.fill_diagonal(dist_matrix_np, 0.0)
-                        dist_matrix_np[dist_matrix_np < 0] = 0
-
-                        for k in range(2, max_possible_k + 1):
-                            labels = fcluster(linkage_matrix, t=k, criterion="maxclust")
-                            if len(set(labels)) < 2:
-                                continue
-                            score = silhouette_score(
-                                dist_matrix_np, labels, metric="precomputed"
-                            )
-                            logging.info(f"  K={k}, Silhouette Score={score:.4f}")
-                            if score > best_score:
-                                best_score = score
-                                best_k = k
-
-                        logging.info(
-                            f"Optimal K detected: {best_k} (Score: {best_score:.4f})"
-                        )
-                        args.cluster_k = best_k
-
-                # OPTION 2: Extract Labels
-                if args.cluster_k:
-                    logging.info(f"Cutting tree into {args.cluster_k} clusters...")
-                    final_cluster_labels = fcluster(
-                        linkage_matrix, t=args.cluster_k, criterion="maxclust"
-                    )
-                elif args.cluster_t:
-                    logging.info(f"Cutting tree at threshold {args.cluster_t}...")
-                    final_cluster_labels = fcluster(
-                        linkage_matrix, t=args.cluster_t, criterion="distance"
-                    )
-                elif (
-                    args.cluster_out
-                ):  # Fallback if writing file but no method provided
-                    logging.warning("No clustering method provided. Defaulting to K=2.")
-                    final_cluster_labels = fcluster(
-                        linkage_matrix, t=2, criterion="maxclust"
-                    )
-
-                # Save to CSV if requested
-                if args.cluster_out and final_cluster_labels is not None:
-                    # Note: fcluster returns labels corresponding to original df index order
-                    cluster_df = pd.DataFrame(
-                        {"Sample": df.index, "Cluster_ID": final_cluster_labels}
-                    )
-                    cluster_df.to_csv(args.cluster_out, index=False)
-                    logging.info(f"Saved cluster assignments to {args.cluster_out}")
-
-            # Save Sorted Matrix
-            reordered_index = g.dendrogram_row.reordered_ind
-            sorted_df = df.iloc[reordered_index, reordered_index]
-            sorted_df.to_csv(args.csv)
-            logging.info(f"Saved sorted matrix to {args.csv}")
-
-        else:
-            logging.info("Using simple sorting (no clustering)...")
-            df = df.loc[df.sum(axis=1).sort_values().index]
-            if df.shape[0] == df.shape[1]:
-                df = df.reindex(columns=df.index)
-
-            fig, ax = plt.subplots(figsize=fig_size)
-            sns.heatmap(
-                df,
-                annot=annot_data,
-                fmt="",
-                cbar_kws={"fraction": 0.01},
-                cmap=args.cmap,
-                linewidths=0,
-                ax=ax,
-                vmin=args.vmin,
-                vmax=args.vmax,
-                mask=mask,
-                annot_kws={"size": font_size},
-            )
-            ax.set_title(args.title, fontsize=label_size + 4)
-            plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=label_size)
-            plt.setp(
-                ax.get_yticklabels(),
-                rotation="horizontal",
-                ha="right",
-                fontsize=label_size,
-            )
-            plt.savefig(args.output, bbox_inches="tight", dpi=args.dpi)
-
-            df.to_csv(args.csv)
-            logging.info(f"Saved sorted matrix to {args.csv}")
-
-        # --- ML FEATURE: PCA PLOT ---
-        if args.pca:
-            if PCA is None:
-                logging.error("scikit-learn not found. Install it to use --pca.")
-            else:
-                logging.info("Generating PCA plot...")
-                pca = PCA(n_components=2)
-
-                # PCA on the distance matrix (PCoA equivalent)
-                coords = pca.fit_transform(df)
-                pca_df = pd.DataFrame(coords, columns=["PC1", "PC2"], index=df.index)
-
-                # Add Cluster Info if available
-                if final_cluster_labels is not None:
-                    pca_df["Cluster"] = final_cluster_labels.astype(str)
-                    hue_col = "Cluster"
-                else:
-                    hue_col = None
-
-                plt.figure(figsize=(10, 8))
-                sns.scatterplot(
-                    data=pca_df,
-                    x="PC1",
-                    y="PC2",
-                    hue=hue_col,
-                    palette="tab10",
-                    s=100,
-                    edgecolor="black",
-                    alpha=0.8,
-                )
-
-                plt.title(f"PCA (PCoA) - {args.title}")
-                plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)")
-                plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)")
-
-                if hue_col:
-                    plt.legend(
-                        bbox_to_anchor=(1.05, 1), loc="upper left", title="Cluster"
-                    )
-
-                plt.savefig(args.pca_out, bbox_inches="tight", dpi=args.dpi)
-                logging.info(f"Saved PCA plot to {args.pca_out}")
+            # Save Sorted Matrix (based on the plot's final order)
+            if linkage_matrix is not None:
+                reordered_index = g.dendrogram_row.reordered_ind
+                sorted_df = df.iloc[reordered_index, reordered_index]
+                sorted_df.to_csv(args.csv)
+                logging.info(f"Saved sorted matrix to {args.csv}")
 
     except Exception as e:
-        logging.error(f"Failed to create heatmap/PCA: {e}")
+        logging.error(f"Failed to create heatmap: {e}")
         sys.exit(1)
     finally:
         plt.close("all")
@@ -472,7 +526,7 @@ def main():
         len(df.columns), args.width, args.height, args.font_scale
     )
 
-    run_clustering(df, args, font_tuple)
+    run_analysis(df, args, font_tuple)
     logging.info("Done")
 
 
